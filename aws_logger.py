@@ -90,33 +90,46 @@ class AWSLogger:
                 return err
 
     def clean_buffer(self):
+        err = True
         for message in reversed(self.log_buffer):
             if self._write(message):
-                return False
-        return True
+                err = False
+            else:
+                self.log_buffer.remove(message)
+        return err
+
+    def all_queue_to_buffer(self):
+        while log := self.queue.get():
+            self.log_buffer.append(log)
 
     def listen(self):
         first_err_time = None
         while True:
-            if not self.stop_event.is_set:
+            if not self.stop_event.is_set: # if we need to STOP
+                self.all_queue_to_buffer()
                 self.clean_buffer()
                 break
+
             log = self.queue.get()
-            if log == "DONE":
+
+            if log == "DONE": # if we need to finish up
                 self.clean_buffer()
                 break
             if not log:
                 continue
 
-            if len(self.log_buffer) > 0:
-                self.clean_buffer()
+            if len(self.log_buffer) > 0: # if buffer has something we need to write it first
+                if not self.clean_buffer():
+                    self.log_buffer.append(log)
+                    continue
 
             if err := self._write(log):
-                if len(self.log_buffer) == 0:
+                if len(self.log_buffer) == 0: # if error - start timer
                     first_err_time = datetime.datetime.now()
-                self.log_buffer.append(log)
-                if datetime.datetime.now() - first_err_time > datetime.timedelta(seconds=15):
+                self.log_buffer.append(log) # add message to buffer
+                if datetime.datetime.now() - first_err_time > datetime.timedelta(seconds=15): # last try to send all
                     print(f"stop program after 15 seconds of AWS {err}. Total errors: {len(self.log_buffer)}")
+                    self.all_queue_to_buffer()
                     self.clean_buffer()
                     self.stop_event.set()
             else:
