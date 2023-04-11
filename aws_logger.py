@@ -74,7 +74,7 @@ class AWSLogger:
             self.client.put_log_events(
                 logGroupName=self.aws_cloudwatch_group,
                 logStreamName=self.aws_cloudwatch_stream,
-                logEvents=[{"timestamp": int(round(time.time() * 1000)), "message": str(log)}],
+                logEvents=[{"timestamp": int(round(time.time() * 1000)), "message": log}],
             )
         except Exception as e:
             return e
@@ -111,22 +111,21 @@ class AWSLogger:
                 break
 
             log = self.queue.get()
-
-            if log == "DONE": # if we need to finish up
+            if log == "DONE":  # if we need to finish up
                 self.clean_buffer()
                 break
             if not log:
                 continue
 
-            if len(self.log_buffer) > 0: # if buffer has something we need to write it first
+            if len(self.log_buffer) > 0:  # if buffer has something we need to write it first
                 if not self.clean_buffer():
                     self.log_buffer.append(log)
                     continue
 
             if err := self._write(log):
-                if len(self.log_buffer) == 0: # if error - start timer
+                if len(self.log_buffer) == 0:  # if error - start timer
                     first_err_time = datetime.datetime.now()
-                self.log_buffer.append(log) # add message to buffer
+                self.log_buffer.append(log)  # add message to buffer
                 if datetime.datetime.now() - first_err_time > datetime.timedelta(seconds=15): # last try to send all
                     print(f"stop program after 15 seconds of AWS {err}. Total errors: {len(self.log_buffer)}")
                     self.all_queue_to_buffer()

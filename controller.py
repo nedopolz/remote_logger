@@ -1,3 +1,4 @@
+import sys
 import time
 from queue import Queue
 from threading import Thread
@@ -51,5 +52,5 @@ class Controller:
                 if aws_thread.is_alive() or docker_thread.is_alive():
                     print("pls wait cleaning buffer")
                     time.sleep(1)
-            return "terminated"
+            sys.exit()
         return "success"

@@ -21,17 +21,23 @@ class ContainerExecutor:
             pass
 
     def execute(self):
-        container = self.client.containers.run(
-            image=self.image,
-            command=self.command,
-            name=self.image,
-            auto_remove=True,
-            detach=True,
-        )
-        for log in container.logs(stream=True):
+        container = self.client.containers.run(image=self.image,
+                                               command=['sh', '-c', self.command],
+                                               detach=True,
+                                               name=self.image,
+                                               network_mode="host",
+                                               stdout=True,
+                                               stderr=True,
+                                               tty=True)
+        message = b''
+        for log in container.logs(stream=True, follow=True):
             if self.stop_event.is_set():
                 self.rm_container(self.image)
                 self.queue.put(item=log)
                 break
-            self.queue.put(item=log)
+            if log != b'\n':
+                message += log
+                continue
+            self.queue.put(item=message.decode("utf-8").strip())
+            message = b''
         self.queue.put("DONE")
